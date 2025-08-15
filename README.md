@@ -1,3 +1,7 @@
+# IGReg: Mitigating Gradient Conflicts for Multi-Task Glioma Phenotyping and Grading via Implicit Regularization
+
+![IGReg Network Architecture](IGreg.jpg)
+
 This repository provides the **PyTorch implementation** of the paper:  
 **"Mitigating Gradient Conflicts for Multi-Task Glioma Phenotyping and Grading via Implicit Regularization (IGReg)"**.
 
@@ -6,7 +10,7 @@ This repository provides the **PyTorch implementation** of the paper:
 IGReg integrates two plug-and-play modules into a standard multi-task learning (MTL) framework:
 
 ### 1. Dynamic Prototype Alignment (DPA)
-- Constructs a semantic prototype space using an auxiliary segmentation dataset.
+- Constructs a semantic prototype space using an **auxiliary segmentation dataset** (different from the glioma multi-task classification dataset).
 - Aligns task-specific features from the MTL framework with relevant prototypes via contrastive learning.
 - Enhances feature consistency and reduces task-specific gradient noise.
 
@@ -20,7 +24,8 @@ The backbone of IGReg is adapted from the [MA-MTLN](https://github.com/infinite-
 > Zhang, Yongtao, Li, Haimei, Du, Jie, Qin, Jing, Wang, Tianfu, Chen, Yue, Liu, Bing, Gao, Wenwen, Ma, Guolin, & Lei, Baiying. (2021). 3D multi-attention guided multi-task learning network for automatic gastric tumor segmentation and lymph node classification. *IEEE Transactions on Medical Imaging*, 40(6), 1618–1631.
 
 ## Data & Preprocessing
-Data acquisition, preprocessing, and base model construction follow our previously released code:  
+- The **auxiliary segmentation dataset** used in the DPA module comes from a source different from the glioma multi-task classification dataset, and is specifically introduced to alleviate gradient noise across tasks.
+- Data acquisition, preprocessing, and base model construction follow our previously released code:  
 🔗 [CMTLNet Repository](https://github.com/ChiChienMile/CMTLNet/)
 
 ## Dependencies
