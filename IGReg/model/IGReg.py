@@ -15,7 +15,7 @@ from model.Backbone.IGReg import Backbone_IGReg
 
 class IGReg(nn.Module):
     """
-    Two-stage training scheme:
+    Add training scheme for STDGP:
 
       Step = 1:
         - Freeze IGReg_DPA (main branch).
@@ -459,4 +459,5 @@ if __name__ == "__main__":
             print("Initializing........")
             model.IGReg_DPA.init_cluster_seg(imseg, seg_onehot)
             print("Initializing end")
+
             print(f"Initialization time: {time.time() - t0:.2f} seconds")
