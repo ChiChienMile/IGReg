@@ -617,7 +617,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
                 imgs_init_seg = to_device(imgs_init_seg, gpu=config.use_cuda)
                 seg_init_mask = to_device(seg_init_mask, gpu=config.use_cuda)
                 seg_init_mask = get_onehot_fall(seg_init_mask[:, 0, :])
-                model.init_cluster_seg(imgs_init_seg, seg_init_mask)
+                model.IGReg_DPA.init_cluster_seg(imgs_init_seg, seg_init_mask)
                 print("Initializing end")
                 end_time = time.time()
                 print(f"Initialization time: {end_time - start_time:.2f} seconds")
