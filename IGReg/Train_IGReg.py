@@ -4,7 +4,7 @@ Training script for IGReg (Implicit Gradient Regularization) on multi-task gliom
 """
 
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"  # set visible GPUs before importing torch
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"  # Set visible GPUs *before* importing torch
 
 import warnings
 import time
@@ -58,11 +58,13 @@ from dataLoder.MICCAI_2021_3D import Dataset_Test as Dataset_Test_Seg
 
 def save_model(model, config):
     """
-    Save full model object with a descriptive filename that includes key metrics.
+    Save the entire model object with a descriptive filename.
+
+    Filename encodes: global F1 (mean over three cls tasks), Dice, per-task F1s, and global step.
 
     Args:
-        model (torch.nn.Module): Trained model object to be saved via `torch.save(model, path)`.
-        config (dict): Contains fields:
+        model (torch.nn.Module): The trained model to save via torch.save(model, path).
+        config (dict): Must contain:
             - 'name', 'save_dir', 'global_step'
             - 'Test_F1', 'dice1'
             - 'F1_Test_HL', 'F1_Test_IDH', 'F1_Test_1p19q'
@@ -88,14 +90,15 @@ def save_model(model, config):
 
 def validate(data_loader, model, valid_flag, ssl_index=0, cls_name='IDH'):
     """
-    Evaluate classification head for a given task index (`ssl_index`).
+    Evaluate a classification head for a given task (ssl_index).
 
     Args:
-        data_loader (DataLoader): classification dataloader.
-        model (IGReg): model instance with `.predictcls` method.
-        valid_flag (str): 'Test' or other string used for printing.
-        ssl_index (int): which classification branch to evaluate (0: 1p19q, 1: IDH, 2: HL).
-        cls_name (str): human-readable class name for logging.
+        data_loader (DataLoader): Loader over a classification set (train/val/test).
+        model (IGReg): Model exposing .predictcls(x, ssl_index).
+        valid_flag (str): Tag for printing ('Test' or others).
+        ssl_index (int): Which classification branch to evaluate:
+                         0 -> 1p19q, 1 -> IDH, 2 -> HL.
+        cls_name (str): Human-readable task name for logs.
 
     Returns:
         tuple: (loss_avg, Accuracy, F1, Precision, Recall)
@@ -116,6 +119,7 @@ def validate(data_loader, model, valid_flag, ssl_index=0, cls_name='IDH'):
             loss = loss_Cross(out, cls_label)
             loss_record.update(loss.item(), 1)
 
+            # Note: dim is typically 1 for [B, C]; kept as in original code
             probs = torch.nn.functional.softmax(out)
             preds = torch.argmax(probs, dim=1).cpu().numpy()
 
@@ -145,11 +149,13 @@ def validate(data_loader, model, valid_flag, ssl_index=0, cls_name='IDH'):
 
 def validseg(data_loader, model):
     """
-    Evaluate segmentation branch using SoftDiceLoss and per-class Dice (WT if two classes).
+    Evaluate the segmentation branch using SoftDiceLoss and Dice metric.
+
+    Assumes binary foreground vs. background after one-hot (seg_class=2).
 
     Args:
-        data_loader (DataLoader): segmentation dataloader.
-        model (IGReg): model with `.predictseg`.
+        data_loader (DataLoader): Segmentation dataloader (val/test).
+        model (IGReg): Model exposing .predictseg(x).
 
     Returns:
         tuple: (loss_avg, dice1_avg)
@@ -168,7 +174,8 @@ def validseg(data_loader, model):
         with torch.no_grad():
             outSeg = model.predictseg(img)
             seg_mask1 = get_onehot_fall(seg_mask[:, 0, :])
-            # The original code considered multiple classes; kept commented to preserve behavior.
+
+            # If multi-class segmentation is needed, extend here
             # seg_mask2 = get_onehot_fall(seg_mask[:, 1, :])
             # seg_mask3 = get_onehot_fall(seg_mask[:, 2, :])
 
@@ -187,7 +194,7 @@ def validseg(data_loader, model):
 
 def valid_metrics_by_cls(model, data_loader_Test, ssl_index, cls_name):
     """
-    Wrapper for classification metrics (kept as in original).
+    Convenience wrapper to compute classification metrics for a given task.
     """
     loss_Test, Accuracy_Test, F1_Test, Precision_Test, Recall_Test = validate(
         data_loader=data_loader_Test,
@@ -202,7 +209,7 @@ def valid_metrics_by_cls(model, data_loader_Test, ssl_index, cls_name):
 
 def valid_metrics_by_cls_single(model, data_loader_Test, ssl_index, cls_name):
     """
-    Duplicate of `valid_metrics_by_cls` kept to preserve the public API.
+    Duplicate of `valid_metrics_by_cls`, kept to preserve the public API.
     """
     loss_Test, Accuracy_Test, F1_Test, Precision_Test, Recall_Test = validate(
         data_loader=data_loader_Test,
@@ -221,17 +228,17 @@ def valid_metrics_by_cls_single(model, data_loader_Test, ssl_index, cls_name):
 
 def get_cls_loder(Dataset_cls, Dataset_cls_test, val_transforms, loder_id, basic_ratio):
     """
-    Build classification train/val dataloaders with the given Dataset classes.
+    Build train/val dataloaders for a classification task.
 
     Args:
-        Dataset_cls: training dataset class (balanced by ratio).
-        Dataset_cls_test: test dataset class.
-        val_transforms: monai transform pipeline (here used as ToTensor).
-        loder_id (int): for logging purpose.
-        basic_ratio (list or tuple): ratio spec e.g. [1,1,1].
+        Dataset_cls: Training dataset class that supports ratio-balanced sampling.
+        Dataset_cls_test: Test dataset class for evaluation.
+        val_transforms: Transform pipeline (here just ToTensor).
+        loder_id (int): For printing and distinguishing among the three tasks.
+        basic_ratio (list[int] or tuple[int]): Ratio spec, e.g., [1, 1, 1].
 
     Returns:
-        tuple: (train_loader_cls, val_loader_cls)
+        (DataLoader, DataLoader): train_loader_cls, val_loader_cls
     """
     Cross = 1
     train_dataset_cls = Dataset_cls(
@@ -270,13 +277,15 @@ def get_cls_loder(Dataset_cls, Dataset_cls_test, val_transforms, loder_id, basic
 
 def get_onehot_fall(Prediction):
     """
-    Convert label volume [B, W, H, D] into one-hot tensor [B, C, W, H, D].
+    Convert a label volume [B, W, H, D] into one-hot format [B, C, W, H, D].
+
+    This implementation assumes seg_class=2 (foreground/background).
 
     Args:
-        Prediction (torch.Tensor): long tensor of shape [B, W, H, D].
+        Prediction (torch.Tensor): Integer labels with shape [B, W, H, D].
 
     Returns:
-        torch.Tensor: one-hot with shape [B, C, W, H, D], here C=2.
+        torch.Tensor: One-hot labels [B, C, W, H, D].
     """
     seg_class = 2
     output_ = F.one_hot(Prediction.long(), seg_class)
@@ -286,14 +295,14 @@ def get_onehot_fall(Prediction):
 
 def get_cls_parameters(predictions, target):
     """
-    Compute F1 given predictions and targets using `clf_metrics`.
+    Compute macro-F1 from predictions and ground-truth labels using `clf_metrics`.
 
     Args:
-        predictions (list/ndarray)
-        target (list/ndarray)
+        predictions (array-like): Predicted class indices.
+        target (array-like): Ground-truth class indices.
 
     Returns:
-        float: F1 score (macro)
+        float: Macro F1 score.
     """
     predictions = np.array(predictions, dtype=np.int32)
     gts = np.array(target, dtype=np.int32)
@@ -311,19 +320,19 @@ def get_cls_parameters(predictions, target):
 
 def train(model, init_seg, ratio_list, Cross_Seg=1):
     """
-    Main training loop combining segmentation and three classification tasks.
+    Main training loop combining segmentation and the three classification tasks.
 
-    Pipeline per epoch:
-      1) Copy pretrained backbone params to G1/G2/G3.
-      2) Stage-1: update task-specific heads (G1/G2/G3) for 100 iters.
-      3) Stage-2: update main IGReg_DPA backbone with uncertainty-weighted objective for 100 iters.
-      4) Run validation for all tasks + segmentation; log to CSV; save the best checkpoint by (Dice + mean F1).
+    Per epoch:
+      1) Copy the current main backbone to each task branch (G1/G2/G3).
+      2) Stage-1: Update G1/G2/G3 for `modify_step` quick iterations.
+      3) Stage-2: Update the main IGReg_DPA backbone with uncertainty-weighted loss.
+      4) Validate all tasks; log metrics; save the best model by (Dice + mean F1).
 
     Args:
-        model (IGReg): model instance.
-        init_seg (int): batch size used for initializing segmentation clusters (first-time init).
-        ratio_list (list[int]): ratios for the three classification datasets, e.g., [1,1,1].
-        Cross_Seg (int): fold index for segmentation dataset.
+        model (IGReg): Model instance exposing IGReg_DPA and branches G1/G2/G3.
+        init_seg (int): Batch size used once to initialize segmentation clusters.
+        ratio_list (list[int]): Ratios for the three classification datasets, e.g., [1, 1, 1].
+        Cross_Seg (int): Fold index for the segmentation dataset.
     """
     val_transforms = monai.transforms.Compose([
         monai.transforms.ToTensor(),
@@ -352,7 +361,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
     )
     print("Segmentation | Number of testing examples {}".format(len(test_dataset_seg)))
 
-    # Loader used ONLY for initialization (cluster init)
+    # Loader used ONLY once for cluster initialization of the segmentation branch
     init_seg_dataset = Dataset_Train_Seg(Cross=Cross_Seg, transform=val_transforms)
     init_loader_seg = DataLoader(
         init_seg_dataset,
@@ -398,15 +407,9 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
     dice_loss = SoftDiceLoss(smooth=1e-5, do_bg=False)
 
     # ---------------- Optimizers ----------------
-    params_main = list(model.IGReg_DPA.parameters()) + [
-        model.log_sigma1, model.log_sigma2, model.log_sigma3,
-        model.log_sigma4, model.log_sigma5, model.log_sigma6
-    ]
-    optim_main = Lion(
-        (p for p in params_main if p.requires_grad),
-        lr=config.lr_self,
-        weight_decay=config.weight_decay
-    )
+    # One optimizer for the main backbone; one per task-specific branch
+    optim_main = Lion(filter(lambda p: p.requires_grad, model.parameters()),
+                      lr=config.lr_self, weight_decay=config.weight_decay)
     optim_g1 = Lion(filter(lambda p: p.requires_grad, model.G1.parameters()),
                     lr=config.lr_self, weight_decay=config.weight_decay)
     optim_g2 = Lion(filter(lambda p: p.requires_grad, model.G2.parameters()),
@@ -422,6 +425,11 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
         os.makedirs(path_save)
 
     model.train()
+
+    # Number of quick updates for G1/G2/G3 in Stage-1 (larger -> longer per-epoch time)
+    modify_step = 5
+
+    # Per-loader iteration indices and iterators
     iter_index_cls_1 = 0
     iter_index_cls_2 = 0
     iter_index_cls_3 = 0
@@ -442,25 +450,110 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
         if epoch == config.save_epoch:
             best_score_save = -1
 
-        # ------------------------------------------------------------
-        # Stage 0: Copy pretrained backbone into each branch G1/G2/G3
-        # ------------------------------------------------------------
-        model.copy_param(model.G1, model.IGReg_DPA.BranchMain)
-        model.copy_param(model.G2, model.IGReg_DPA.BranchMain)
-        model.copy_param(model.G3, model.IGReg_DPA.BranchMain)
-
-        # ------------------------------------------------------------
-        # Stage 1: Update G1/G2/G3
-        # ------------------------------------------------------------
-        # Stage 2: Update main IGReg_DPA backbone
-        # ------------------------------------------------------------
+        # A fixed number of outer iterations per epoch (100); each contains Stage-1 and Stage-2
         for batch_idx in range(100):
+            # ------------------------------------------------------------
+            # Stage 0: Copy main backbone parameters into G1/G2/G3
+            # ------------------------------------------------------------
+            model.copy_param(model.G1, model.IGReg_DPA.BranchMain)
+            model.copy_param(model.G2, model.IGReg_DPA.BranchMain)
+            model.copy_param(model.G3, model.IGReg_DPA.BranchMain)
+
+            # ------------------------------------------------------------
+            # Stage 1: Update G1/G2/G3 for `modify_step` mini-iterations
+            # ------------------------------------------------------------
+            for batch_idx in range(modify_step):
+                # Advance internal counters
+                iter_index_cls_1 += 1
+                iter_index_cls_2 += 1
+                iter_index_cls_3 += 1
+                iter_index_seg += 1
+
+                # Recycle iterators if they reach the end
+                if iter_index_cls_1 >= len(train_loader_cls_1p19q):
+                    iter_labeled_cls_1 = iter(train_loader_cls_1p19q)
+                    iter_index_cls_1 = 0
+                if iter_index_cls_2 >= len(train_loader_cls_IDH):
+                    iter_labeled_cls_2 = iter(train_loader_cls_IDH)
+                    iter_index_cls_2 = 0
+                if iter_index_cls_3 >= len(train_loader_cls_HL):
+                    iter_labeled_cls_3 = iter(train_loader_cls_HL)
+                    iter_index_cls_3 = 0
+                if iter_index_seg >= len(train_loader_seg):
+                    iter_labeled_seg = iter(train_loader_seg)
+                    iter_index_seg = 0
+
+                # ----- Segmentation batch -----
+                data_seg = next(iter_labeled_seg)
+                imgs_seg, seg_mask = data_seg
+                imseg = to_device(imgs_seg, gpu=config.use_cuda)
+                seg_mask = to_device(seg_mask, gpu=config.use_cuda)
+                seg_onehot = get_onehot_fall(seg_mask[:, 0, :])
+
+                # ----- Classification batches (1p19q, IDH, HL) -----
+                data_CLS_1p19q = next(iter_labeled_cls_1)
+                imgs_1p19q, labels_1p19q = data_CLS_1p19q
+
+                data_CLS_IDH = next(iter_labeled_cls_2)
+                imgs_IDH, labels_IDH = data_CLS_IDH
+
+                data_CLS_HL = next(iter_labeled_cls_3)
+                imgs_HL, labels_HL = data_CLS_HL
+
+                # Merge triplets into a single classification batch
+                input_imgs = torch.cat((imgs_1p19q, imgs_IDH, imgs_HL), 0)
+                input_imgs = input_imgs.reshape(
+                    input_imgs.size(0) * input_imgs.size(1),
+                    input_imgs.size(2), input_imgs.size(3),
+                    input_imgs.size(4), input_imgs.size(5)
+                )
+                imcls = to_device(input_imgs, gpu=config.use_cuda)
+
+                # Prepare labels for three tasks
+                label_list = []
+                labels_1p19q = labels_1p19q.reshape(labels_1p19q.size(0) * labels_1p19q.size(1))
+                labels_IDH = labels_IDH.reshape(labels_IDH.size(0) * labels_IDH.size(1))
+                labels_HL = labels_HL.reshape(labels_HL.size(0) * labels_HL.size(1))
+
+                label_cls1_to_list = to_device(labels_1p19q, gpu=config.use_cuda)
+                label_cls2_to_list = to_device(labels_IDH, gpu=config.use_cuda)
+                label_cls3_to_list = to_device(labels_HL, gpu=config.use_cuda)
+
+                label_list.append(label_cls1_to_list)
+                label_list.append(label_cls2_to_list)
+                label_list.append(label_cls3_to_list)
+
+                # For possible CPU-side usage (kept for compatibility)
+                label_list_cpu = []
+                label_list_cpu.append(label_cls1_to_list.cpu())
+                label_list_cpu.append(label_cls2_to_list.cpu())
+                label_list_cpu.append(label_cls3_to_list.cpu())
+
+                # Random index used inside the model (e.g., routing, stochastic choices)
+                rand_idx = random.randint(0, 5)
+
+                # ----- Optimize the three branches -----
+                optim_g1.zero_grad()
+                optim_g2.zero_grad()
+                optim_g3.zero_grad()
+                model(
+                    imcls, imseg, label_list, seg_onehot, ce_loss, dice_loss, rand_idx,
+                    optim_g1, optim_g2, optim_g3, step=1
+                )
+                optim_g1.step()
+                optim_g2.step()
+                optim_g3.step()
+
+            # ------------------------------------------------------------
+            # Stage 2: Update main IGReg_DPA backbone (single step)
+            # ------------------------------------------------------------
+            # Update iteration indices again for the Stage-2 batch
             iter_index_cls_1 += 1
             iter_index_cls_2 += 1
             iter_index_cls_3 += 1
             iter_index_seg += 1
 
-            # Recycle iterators if reaching the end
+            # Recycle iterators if needed
             if iter_index_cls_1 >= len(train_loader_cls_1p19q):
                 iter_labeled_cls_1 = iter(train_loader_cls_1p19q)
                 iter_index_cls_1 = 0
@@ -491,6 +584,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
             data_CLS_HL = next(iter_labeled_cls_3)
             imgs_HL, labels_HL = data_CLS_HL
 
+            # Merge into one classification batch
             input_imgs = torch.cat((imgs_1p19q, imgs_IDH, imgs_HL), 0)
             input_imgs = input_imgs.reshape(
                 input_imgs.size(0) * input_imgs.size(1),
@@ -499,6 +593,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
             )
             imcls = to_device(input_imgs, gpu=config.use_cuda)
 
+            # Prepare labels (again)
             label_list = []
             labels_1p19q = labels_1p19q.reshape(labels_1p19q.size(0) * labels_1p19q.size(1))
             labels_IDH = labels_IDH.reshape(labels_IDH.size(0) * labels_IDH.size(1))
@@ -519,18 +614,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
 
             rand_idx = random.randint(0, 5)
 
-            # ----- Optimize three branches -----
-            optim_g1.zero_grad()
-            optim_g2.zero_grad()
-            optim_g3.zero_grad()
-            model(
-                imcls, imseg, label_list, seg_onehot, ce_loss, dice_loss, rand_idx,
-                optim_g1, optim_g2, optim_g3, step=1
-            )
-            optim_g1.step()
-            optim_g2.step()
-            optim_g3.step()
-            # --------- Step 2: train main IGReg_DPA with uncertainty-weighted objective --------------
+            # Backprop only through the main backbone in Stage-2
             optim_main.zero_grad()
             loss = model(
                 imcls, imseg, label_list, seg_onehot, ce_loss, dice_loss, rand_idx,
@@ -547,11 +631,12 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
         train_loss_avg = Train_loss_record.avg
 
         # ---------------- Validation ----------------
-        # Classification metrics (loss, Accuracy, F1, Precision, Recall)
+        # Classification: (loss, Accuracy, F1, Precision, Recall)
         metrics_test_cls_1 = valid_metrics_by_cls(model, val_loader_cls_1p19q, ssl_index=0, cls_name=cls_name_final[0])
         metrics_test_cls_2 = valid_metrics_by_cls(model, val_loader_cls_IDH,   ssl_index=1, cls_name=cls_name_final[1])
         metrics_test_cls_3 = valid_metrics_by_cls(model, val_loader_cls_HL,    ssl_index=2, cls_name=cls_name_final[2])
 
+        # Segmentation: (loss, Dice)
         test_seg_loss, diceDis = validseg(test_loader_seg, model)
 
         loss_Test_1p19q = metrics_test_cls_1[0]
@@ -564,7 +649,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
 
         Mean_TeCls = (F1_Test_1p19q + F1_Test_IDH + F1_Test_HL) / 3
 
-        # ---------------- Logging to CSV ----------------
+        # ---------------- CSV logging ----------------
         tmp = pd.Series([
             epoch,
             train_loss_avg,
@@ -581,11 +666,11 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
             'Mean_TeCls'
         ])
 
-
         log = log.append(tmp, ignore_index=True)
         log.to_csv(path_save + 'log.csv', index=False)
 
         # ---------------- Checkpointing ----------------
+        # Select by (seg Dice + mean F1 across three classification tasks)
         F1 = (F1_Test_HL + F1_Test_IDH + F1_Test_1p19q) / 3
         compare = diceDis + F1
         if epoch >= config.save_epoch:
@@ -607,7 +692,8 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
             best_score_save = compare
 
         # ---------------- One-time segmentation cluster init ----------------
-        if model.SegDCFun.MAUCloss.init == False:
+        # Initialize once when the cluster function is not yet set up
+        if model.IGReg_DPA.PropCluster.Clusterfunction.init == False:
             with torch.no_grad():
                 start_time = time.time()
                 print("Initializing........")
@@ -637,19 +723,20 @@ if __name__ == '__main__':
     # ---------------- Determinism / Seeds ----------------
     seed = config.random_seed
     np.random.seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)  # for hash randomization
+    os.environ['PYTHONHASHSEED'] = str(seed)  # For hash randomization
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)  # current GPU
-    torch.cuda.manual_seed_all(seed)  # all GPUs
+    torch.cuda.manual_seed(seed)        # Current GPU
+    torch.cuda.manual_seed_all(seed)    # All GPUs
 
-    torch.backends.cudnn.benchmark = False  # deterministic == True requires benchmark False
+    # Deterministic cuDNN settings
+    torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
     print("Available GPUs:", torch.cuda.device_count())
 
     # ---------------- Experiment setup ----------------
-    init_seg = 10  # number of samples for segmentation cluster initialization
+    init_seg = 10  # Number of samples for segmentation cluster initialization
 
     ratio_list_all = [
         [1, 1, 1],
@@ -661,7 +748,7 @@ if __name__ == '__main__':
         [10, 1, 1]
     ]
 
-    ratio_index = 6  # choose scenario index
+    ratio_index = 6  # Choose the scenario index from ratio_list_all
     model = IGReg(n_classes=2, num_channels=24, dim_proj=64, nc_pos=6, nc_neg=6, m=0.5)
 
     save_name = model.name + '_' + str(ratio_list_all[ratio_index])
