@@ -427,7 +427,7 @@ def train(model, init_seg, ratio_list, Cross_Seg=1):
     model.train()
 
     # Number of quick updates for G1/G2/G3 in Stage-1 (larger -> longer per-epoch time)
-    modify_step = 5
+    modify_step = 2
 
     # Per-loader iteration indices and iterators
     iter_index_cls_1 = 0
