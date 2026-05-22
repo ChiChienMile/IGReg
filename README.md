@@ -35,7 +35,9 @@ The backbone of IGReg is adapted from the [MA-MTLN](https://github.com/infinite-
 
 ## Dependencies
 
-IGReg uses the **Lion optimizer by default**. Please install it before training:
+The released code uses the **Adam optimizer by default**, which is available in standard PyTorch and does not require additional installation.
+
+However, we recommend using the **Lion optimizer** when possible, as it usually provides better prediction performance in our experiments. To use Lion, please install:
 
 ```bash
 pip install lion-pytorch
@@ -60,7 +62,7 @@ python Train_IGReg.py
 By default, IGReg uses:
 
 ```python
-optimizer = "lion"
+optimizer = "adam"
 num_channels = 24
 ```
 
@@ -71,6 +73,12 @@ num_channels = 32
 ```
 
 In our experiments, `num_channels=32` usually provides better prediction performance.
+
+Although Adam is used as the default optimizer for better compatibility, we recommend using Lion for improved performance when the required package is available:
+
+```python
+optimizer = "lion"
+```
 
 Please note that the released code is configured for a three-task training setting, with a default batch size of 2 for each task. When using different task inputs or batch-size settings, the training process of `G1`, `G2`, and `G3` needs to be adjusted accordingly.
 
