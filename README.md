@@ -2,12 +2,16 @@
 
 ![IGReg Network Architecture](IGReg.jpg)
 
-This repository provides the **PyTorch implementation** of the paper:  
-**"Mitigating Gradient Conflicts for Multi-Task Glioma Phenotyping and Grading via Implicit Regularization (IGReg)"**.
+This repository provides the **PyTorch implementation** of our paper published in **Pattern Recognition**:
+
+> Qijian Chen, Lihui Wang, Zeyu Deng, Rongpin Wang, Li Wang, Yi Chen, Yue-Min Zhu, and Hongjiang Wei.  
+> **Mitigating gradient conflicts for multi-task glioma phenotyping and grading via implicit regularization**.  
+> *Pattern Recognition*, 2026, Article 113974.  
+> DOI: [10.1016/j.patcog.2026.113974](https://doi.org/10.1016/j.patcog.2026.113974)
 
 ## Method Overview
 
-IGReg integrates two plug-and-play modules into a standard multi-task learning (MTL) framework:
+IGReg is designed to mitigate optimization conflicts in multi-task glioma phenotyping and grading. It integrates two plug-and-play modules into a standard multi-task learning (MTL) framework.
 
 ### 1. Dynamic Prototype Alignment (DPA)
 
@@ -92,7 +96,22 @@ python model.IGReg.py
 
 ## Citation
 
-If you find this work useful, please consider citing our paper:
+If you find this repository useful, please consider citing our IGReg paper:
+
+```bibtex
+@article{CHEN2026113974,
+  title = {Mitigating gradient conflicts for multi-task glioma phenotyping and grading via implicit regularization},
+  journal = {Pattern Recognition},
+  pages = {113974},
+  year = {2026},
+  issn = {0031-3203},
+  doi = {https://doi.org/10.1016/j.patcog.2026.113974},
+  url = {https://www.sciencedirect.com/science/article/pii/S0031320326009398},
+  author = {Qijian Chen and Lihui Wang and Zeyu Deng and Rongpin Wang and Li Wang and Yi Chen and Yue-Min Zhu and Hongjiang Wei}
+}
+```
+
+If you use the preprocessing pipeline or base code from CMTLNet, please also cite:
 
 ```bibtex
 @article{chen2025103435,
