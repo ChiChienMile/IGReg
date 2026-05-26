@@ -33,9 +33,36 @@ The backbone of IGReg is adapted from the [MA-MTLN](https://github.com/infinite-
 
 ## Data & Preprocessing
 
-- The **auxiliary segmentation dataset** used in the DPA module comes from a source different from the glioma multi-task classification dataset and is introduced to alleviate task-specific gradient noise.
-- Data acquisition, preprocessing, and base model construction follow our previously released code:  
-  [CMTLNet Repository](https://github.com/ChiChienMile/CMTLNet/)
+IGReg was evaluated using multi-center glioma MRI datasets. In the released implementation and experiments, **only T1CE and T2W modalities were used**.
+
+The dataset usage in this paper is organized as follows. The three classification datasets, including MI-20, EGD, and LGG-1p/19q, were pooled and randomly split at the case level into **80% training** and **20% validation**. MI-21 was used only for prototype alignment in the DPA module. Before prototype alignment, the MI-21 cases overlapping with the classification-labeled subset of MI-20 were excluded because these cases had already been used for model training; cases overlapping with UCSF-PDGM were also excluded to avoid data leakage into the external test set. UCSF-PDGM, REMBRANDT, and GZPH were used as independent multi-center test sets.
+
+| Dataset | No. of cases | Role in this paper | Split / usage | Modalities used | Main available annotations |
+|---|---:|---|---|---|---|
+| MI-20 | 660 | Multi-task classification training/validation | Included in the pooled 80%/20% training-validation split | T1CE, T2W | IDH, 1p/19q, LHG labels; WT/TC/ET masks |
+| EGD | 774 | Multi-task classification training/validation | Included in the pooled 80%/20% training-validation split | T1CE, T2W | IDH, 1p/19q, LHG labels; WT masks |
+| LGG-1p/19q | 158 | Multi-task classification training/validation | Included in the pooled 80%/20% training-validation split | T1CE, T2W | 1p/19q and LHG labels; WT masks |
+| MI-21 | 2,040 | Auxiliary data for prototype alignment | Used for DPA prototype construction/alignment after excluding cases overlapping with the classification-labeled MI-20 subset and UCSF-PDGM; not used for multi-task classification training | T1CE, T2W | WT/TC/ET masks |
+| UCSF-PDGM | 501 | Independent multi-center testing | External test set | T1CE, T2W | IDH, 1p/19q, LHG labels; WT/TC/ET masks |
+| REMBRANDT | 130 | Independent multi-center testing | External test set | T1CE, T2W | LHG labels available for part of the cohort |
+| GZPH | 78 | Independent multi-center testing | External test set | T1CE, T2W | IDH and LHG labels |
+
+The detailed task-label distribution is summarized below. Unknown labels were not used for the corresponding task-specific supervision or evaluation.
+
+| Dataset | IDH wildtype | IDH mutated | IDH unknown | 1p/19q co-deleted | 1p/19q intact | 1p/19q unknown | LGG | HGG | LHG unknown |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| MI-20 | 108 | 86 | 466 | 26 | 165 | 469 | 103 | 293 | 264 |
+| MI-21 | 0 | 0 | 2,040 | 0 | 0 | 2,040 | 0 | 0 | 2,040 |
+| EGD | 312 | 155 | 307 | 73 | 186 | 515 | 214 | 502 | 58 |
+| LGG-1p/19q | 0 | 0 | 158 | 102 | 56 | 0 | 158 | 0 | 0 |
+| UCSF-PDGM | 397 | 104 | 0 | 15 | 395 | 91 | 99 | 401 | 1* |
+| REMBRANDT | 0 | 0 | 130 | 0 | 0 | 130 | 69 | 43 | 18 |
+| GZPH | 21 | 38 | 19 | 0 | 0 | 78 | 41 | 37 | 0 |
+
+\* For UCSF-PDGM, the LHG-unknown count is kept consistent with the total number of cases in this README table.
+
+Data acquisition, preprocessing, and base model construction follow our previously released code:
+[CMTLNet Repository](https://github.com/ChiChienMile/CMTLNet/). Public datasets can be obtained through their original sources, and the corresponding preprocessing scripts are provided in the released repository. The private GZPH cohort cannot be publicly redistributed due to institutional restrictions.
 
 ## Dependencies
 
